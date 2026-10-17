@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
-_cs_boot="${COMMUNITY_SCRIPTS_CORE_DIR:-$(dirname "${BASH_SOURCE[0]}")/../../core}/core/build.func"
-source "$_cs_boot" 2>/dev/null || source <(curl -fsSL "${COMMUNITY_SCRIPTS_CORE_URL:-https://raw.githubusercontent.com/community-scripts/core/main}/core/build.func")
-# Copyright (c) 2021-2026 Community Scripts
-# Author: Custom / Adapted for UniFi Toolkit
-# License: MIT | https://github.com/Crosstalk-Solutions/unifi-toolkit
+# Copyright (c) 2021-2026 tteck / Community Scripts
+# Adapted for UniFi Toolkit
 
+# Standaard tteck variabelen voor de container
 APP="UniFi-Toolkit"
 var_tags="${var_tags:-unifi;toolkit}"
 var_cpu="${var_cpu:-1}"
@@ -14,6 +12,10 @@ var_os="${var_os:-debian}"
 var_version="${var_version:-12}"
 var_arm64="${var_arm64:-no}"
 var_unprivileged="${var_unprivileged:-1}"
+
+# Laad het tteck core framework voor de container-bouw
+_cs_boot="${COMMUNITY_SCRIPTS_CORE_DIR:-$(dirname "${BASH_SOURCE[0]}")/../../core}/core/build.func"
+source "$_cs_boot" 2>/dev/null || source <(curl -fsSL "${COMMUNITY_SCRIPTS_CORE_URL:-https://raw.githubusercontent.com/community-scripts/core/main}/core/build.func")
 
 header_info "$APP"
 variables
@@ -30,12 +32,14 @@ function update_script() {
     fi
     msg_info "Updating UniFi Toolkit"
     set +e
-    cd /opt/unifi-toolkit
-    git pull
-    source venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
-    systemctl restart unifi-toolkit
+    lxc-attach -n "$CTID" -- bash -c "
+      cd /opt/unifi-toolkit
+      git pull
+      source venv/bin/activate
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      systemctl restart unifi-toolkit
+    "
     msg_ok "Updated UniFi Toolkit successfully!"
     exit
 }
@@ -46,6 +50,7 @@ description
 
 msg_info "Configuring UniFi Toolkit inside the container..."
 lxc-attach -n "$CTID" -- bash -c "
+  apt update && apt install -y git python3 python3-pip python3-venv build-essential curl
   mkdir -p /opt/unifi-toolkit
   git clone https://github.com/Crosstalk-Solutions/unifi-toolkit.git /opt/unifi-toolkit
   cd /opt/unifi-toolkit
@@ -53,11 +58,8 @@ lxc-attach -n "$CTID" -- bash -c "
   source venv/bin/activate
   pip install --upgrade pip
   pip install -r requirements.txt
-"
 
-msg_info "Creating Systemd Service..."
-lxc-attach -n "$CTID" -- bash -c "
-cat << 'EOF' > /etc/systemd/system/unifi-toolkit.service
+  cat << 'EOF' > /etc/systemd/system/unifi-toolkit.service
 [Unit]
 Description=UniFi Toolkit Service
 After=network.target
@@ -74,13 +76,14 @@ Environment=PYTHONUNBUFFERED=1
 [Install]
 WantedBy=multi-user.target
 EOF
-systemctl daemon-reload
-systemctl enable unifi-toolkit
-systemctl start unifi-toolkit
+
+  systemctl daemon-reload
+  systemctl enable unifi-toolkit
+  systemctl start unifi-toolkit
 "
 
 msg_ok "Completed successfully!\n"
 echo -e "${CREATING}${GN}${APP} setup has been successfully initialized!${CL}"
 echo -e "${INFO}${YW}Access it using the following URL:${CL}"
 echo -e "${GATEWAY}${BGN}http://${IP}:8000${CL}"
-echo -e "${INFO}${YW}Note: Don't forget to run './setup.sh' inside the container if you need to configure your environment variables/keys.${CL}"
+echo -e "${INFO}${YW}Note: Don't forget to run './setup.sh' inside the container via 'pct enter ${CTID}' if you need to configure your environment variables/keys.${CL}"
