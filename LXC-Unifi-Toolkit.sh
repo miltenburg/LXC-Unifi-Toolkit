@@ -1,21 +1,18 @@
 #!/usr/bin/env bash
+_cs_boot="${COMMUNITY_SCRIPTS_CORE_DIR:-$(dirname "${BASH_SOURCE[0]}")/../../core}/core/build.func"
+source "$_cs_boot" 2>/dev/null || source <(curl -fsSL "${COMMUNITY_SCRIPTS_CORE_URL:-https://raw.githubusercontent.com/community-scripts/core/main}/core/build.func")
 # Copyright (c) 2021-2026 tteck / Community Scripts
-# Adapted for UniFi Toolkit
+# Adapted for UniFi Toolkit on Ubuntu 24.04
 
-# Standaard tteck variabelen voor de container
 APP="UniFi-Toolkit"
 var_tags="${var_tags:-unifi;toolkit}"
 var_cpu="${var_cpu:-1}"
 var_ram="${var_ram:-2048}"
 var_disk="${var_disk:-8}"
-var_os="${var_os:-debian}"
-var_version="${var_version:-12}"
+var_os="${var_os:-ubuntu}"
+var_version="${var_version:-24.04}"
 var_arm64="${var_arm64:-no}"
 var_unprivileged="${var_unprivileged:-1}"
-
-# Laad het tteck core framework voor de container-bouw
-_cs_boot="${COMMUNITY_SCRIPTS_CORE_DIR:-$(dirname "${BASH_SOURCE[0]}")/../../core}/core/build.func"
-source "$_cs_boot" 2>/dev/null || source <(curl -fsSL "${COMMUNITY_SCRIPTS_CORE_URL:-https://raw.githubusercontent.com/community-scripts/core/main}/core/build.func")
 
 header_info "$APP"
 variables
@@ -48,17 +45,26 @@ start
 build_container
 description
 
-msg_info "Configuring UniFi Toolkit inside the container..."
+msg_info "Configuring UniFi Toolkit and installing dependencies inside the container..."
 lxc-attach -n "$CTID" -- bash -c "
-  apt update && apt install -y git python3 python3-pip python3-venv build-essential curl
+  # Pakketten bijwerken en installeren (inclusief Python 3.12, venv, pip en git)
+  apt update && apt upgrade -y
+  apt install -y python3.12 python3.12-venv python3-pip git build-essential curl
+
+  # Installatiemap aanmaken
   mkdir -p /opt/unifi-toolkit
+
+  # Repository clonen
   git clone https://github.com/Crosstalk-Solutions/unifi-toolkit.git /opt/unifi-toolkit
+
+  # Naar de map gaan, venv aanmaken en requirements installeren
   cd /opt/unifi-toolkit
-  python3 -m venv venv
+  python3.12 -m venv venv
   source venv/bin/activate
   pip install --upgrade pip
   pip install -r requirements.txt
 
+  # Systemd service aanmaken voor achtergrond-uitvoering
   cat << 'EOF' > /etc/systemd/system/unifi-toolkit.service
 [Unit]
 Description=UniFi Toolkit Service
@@ -86,4 +92,5 @@ msg_ok "Completed successfully!\n"
 echo -e "${CREATING}${GN}${APP} setup has been successfully initialized!${CL}"
 echo -e "${INFO}${YW}Access it using the following URL:${CL}"
 echo -e "${GATEWAY}${BGN}http://${IP}:8000${CL}"
-echo -e "${INFO}${YW}Note: Don't forget to run './setup.sh' inside the container via 'pct enter ${CTID}' if you need to configure your environment variables/keys.${CL}"
+echo -e "${INFO}${YW}Tip: Om de setup-wizard te doorlopen (bijv. .env configureren), typ op de host:${CL}"
+echo -e "${GATEWAY}${BGN}pct enter ${CTID} en ga naar /opt/unifi-toolkit en voer ./setup.sh uit${CL}"
