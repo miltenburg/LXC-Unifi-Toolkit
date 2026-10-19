@@ -1,4 +1,11 @@
-REMARK: script not working correctly !!!!
+local deployment script:
+
+nano install-unifi.sh
+chmod +x install-unifi.sh
+./install-unifi.sh
+
+
+REMARK: the other lxc script is working correctly !!!!
 
 Run the command below in the Proxmox VE Shell or your Incus host shell to install Unifi Toolkit.
 
